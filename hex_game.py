@@ -5,40 +5,39 @@ from string import ascii_lowercase
 import numpy as np
 from numpy.typing import NDArray
 
-NEIGHBORS = np.array(
-    [
-        [-1,  0],
-        [-1,  1],
-        [ 0, -1],
-        [ 0,  1],
-        [ 1, -1],
-        [ 1,  0],
-    ]
-)
+__all__ = ["Cell", "HexState", "NEIGHBORS"]
+
+NEIGHBORS = np.array([
+    [-1,  0],
+    [-1,  1],
+    [ 0, -1],
+    [ 0,  1],
+    [ 1, -1],
+    [ 1,  0],
+])
 
 
 class Cell(IntEnum):
     EMPTY = 0
     BLUE = 1
     RED = 2
-    SELECT = 3
 
     def __neg__(self):
         return (Cell.BLUE if self == Cell.RED else
                 Cell.RED if self == Cell.BLUE else Cell.EMPTY)
 
     def __repr__(self):
-        return ".BRS"[self]
+        return "R" if self == Cell.RED else "B" if self == Cell.BLUE else "."
 
     def __str__(self):
+        default = "\033[0m"
         colors = {
             Cell.EMPTY: "\033[0m",
             Cell.BLUE: "\033[94m",
             Cell.RED: "\033[91m",
-            Cell.SELECT: "\033[93m",
         }
 
-        return colors[self] + repr(self) + "\033[0m"
+        return colors.get(self, default) + repr(self) + "\033[0m"
 
 
 @dataclass
