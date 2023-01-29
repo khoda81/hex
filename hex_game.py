@@ -1,24 +1,18 @@
-import heapq
-import os
-import random
 from dataclasses import dataclass
 from enum import IntEnum
-from functools import cache
-from math import inf
-from string import ascii_letters, ascii_lowercase
+from string import ascii_lowercase
 
 import numpy as np
 from numpy.typing import NDArray
 
-
 NEIGHBORS = np.array(
     [
-        [-1, 0],
-        [-1, 1],
-        [0, -1],
-        [0, 1],
-        [1, -1],
-        [1, 0],
+        [-1,  0],
+        [-1,  1],
+        [ 0, -1],
+        [ 0,  1],
+        [ 1, -1],
+        [ 1,  0],
     ]
 )
 
@@ -30,13 +24,11 @@ class Cell(IntEnum):
     SELECT = 3
 
     def __neg__(self):
-        return (
-            Cell.BLUE
-            if self == Cell.RED
-            else Cell.RED
-            if self == Cell.BLUE
-            else Cell.EMPTY
-        )
+        return (Cell.BLUE if self == Cell.RED else
+                Cell.RED if self == Cell.BLUE else Cell.EMPTY)
+
+    def __repr__(self):
+        return ".BRS"[self]
 
     def __str__(self):
         colors = {
@@ -47,9 +39,6 @@ class Cell(IntEnum):
         }
 
         return colors[self] + repr(self) + "\033[0m"
-
-    def __repr__(self):
-        return ".BRS"[self]
 
 
 @dataclass
@@ -107,6 +96,14 @@ class HexState:
 
         return self
 
+    def __iter__(self):
+        rows, cols = np.argwhere(self.board == Cell.EMPTY).T.tolist()
+        boards = np.repeat(self.board[np.newaxis, ...], len(rows), axis=0)
+        boards[np.arange(len(rows)), rows, cols] = self.player_color
+
+        for action, board in zip(zip(rows, cols), boards):
+            yield action, HexState(board, not self.is_red)
+
     def __str__(self):
         _, w = self.board.shape
         header = f"{self.player_color} " + " ".join(ascii_lowercase[:w])
@@ -116,162 +113,3 @@ class HexState:
         ]
 
         return header + "\n" + "\n".join(rows)
-
-    def __iter__(self):
-        rows, cols = np.argwhere(self.board == Cell.EMPTY).T.tolist()
-        boards = np.repeat(self.board[np.newaxis, ...], len(rows), axis=0)
-        boards[np.arange(len(rows)), rows, cols] = self.player_color
-
-        for action, board in zip(zip(rows, cols), boards):
-            yield action, HexState(board, not self.is_red)
-
-
-@cache
-def generate_neighbors(row, col, height, width):
-    neighbors = []
-    for dr, dc in NEIGHBORS:
-        nr = row + dr
-        if nr not in range(width):
-            continue
-
-        nc = col + dc
-        if nc not in range(height):
-            continue
-
-        neighbors.append((nr, nc))
-
-    return neighbors
-
-
-def dijkstra(state: HexState):
-    empty = int(Cell.EMPTY)
-    color = int(state.player_color)
-    board = state.board_from_player()
-    h, w = board.shape
-
-    min_dist = [[inf] * w for _ in range(h)]
-    board = board.tolist()
-
-    heap = []
-
-    first_row = board[0]
-    first_dist = min_dist[0]
-    for nc, cell in enumerate(first_row):
-        if cell == empty:
-            new_dist = 1
-        elif cell == color:
-            new_dist = 0
-        else:
-            continue
-
-        first_dist[nc] = new_dist
-        heapq.heappush(heap, (new_dist, (0, nc)))
-
-    while heap:
-        dist, (r, c) = heapq.heappop(heap)
-
-        neighbors = generate_neighbors(r, c, w, h)
-        for nr, nc in neighbors:
-            cell = board[nr][nc]
-            if cell == empty:
-                new_dist = dist + 1
-            elif cell == color:
-                new_dist = dist
-            else:
-                continue
-
-            if min_dist[nr][nc] > new_dist:
-                min_dist[nr][nc] = new_dist
-                if nr != h - 1:
-                    heapq.heappush(heap, (new_dist, (nr, nc)))
-
-    return min(min_dist[-1])
-
-
-def negamax(
-    state: HexState,
-    alpha: float,
-    beta: float,
-    depth: int = 0,
-) -> tuple[float, list[tuple[int, int]]]:
-    if depth <= 0:
-        my_dist = dijkstra(state)
-        other_dist = dijkstra(HexState(state.board, not state.is_red))
-        value = other_dist - my_dist
-        return -value, None
-
-    next_action_states = list(state)
-    # todo: sort actions by pegs placed close to other pegs
-    random.shuffle(next_action_states)
-
-    best_action = None
-    value = -inf
-    for action, state in next_action_states:
-        new_value, _ = negamax(state, -beta, -alpha, depth - 1)
-        if best_action is None or new_value > value:
-            value = new_value
-            best_action = action
-
-        alpha = max(alpha, value)
-        if alpha >= beta:
-            break
-
-    return -value, best_action
-
-
-class Negamax:
-    def __init__(self, depth=3):
-        self.depth = depth
-
-    def act(self, obs: HexState):
-        _, action = negamax(obs, -inf, inf, depth=self.depth)
-        return action
-
-
-class Random:
-    def act(self, state: HexState):
-        action, _ = random.choice(list(state))
-        return action
-
-
-class Human:
-    def __init__(self, helper=Random()):
-        self.helper = helper
-
-    def act(self, state: HexState):
-        row, column = self.helper.act(state)
-        user_input = input(f"[{ascii_letters[column]}{row}]> ").strip()
-
-        if user_input:
-            row, column = sorted(user_input)
-            column = ascii_letters.index(column)
-            row = int(row)
-
-        return row, column
-
-
-def main():
-    players = {
-        Cell.RED: Negamax(depth=3),
-        Cell.BLUE: Negamax(depth=3),
-    }
-
-    game_state = HexState.initial_state(is_red=True)
-
-    os.system("cls")
-    print(game_state)
-    print()
-    while not game_state.is_losing():
-        action = players[game_state.player_color].act(game_state)
-        game_state = game_state.place_peg(action)
-
-        os.system("cls")
-        print(game_state)
-        print()
-
-    print("WINNER:", -game_state.player_color)
-    print("LOSER: ", game_state.player_color)
-
-
-if __name__ == "__main__":
-    main()
