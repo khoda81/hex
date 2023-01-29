@@ -15,10 +15,10 @@ NEIGHBORS = np.array(
     [
         [-1, 0],
         [-1, 1],
-        [0, 1],
-        [1, 0],
-        [1, -1],
         [0, -1],
+        [0, 1],
+        [1, -1],
+        [1, 0],
     ]
 )
 
@@ -144,55 +144,48 @@ def generate_neighbors(row, col, height, width):
 
 
 def dijkstra(state: HexState):
+    empty = int(Cell.EMPTY)
+    color = int(state.player_color)
     board = state.board_from_player()
     h, w = board.shape
 
     min_dist = [[inf] * w for _ in range(h)]
-    board_list = board.tolist()
+    board = board.tolist()
 
     heap = []
 
-    nr = 0
-    dist = 0
-    for nc in range(w):
-        if board_list[nr][nc] == Cell.EMPTY:
-            new_dist = dist + 1
-        elif board_list[nr][nc] == state.player_color:
-            new_dist = dist
+    first_row = board[0]
+    first_dist = min_dist[0]
+    for nc, cell in enumerate(first_row):
+        if cell == empty:
+            new_dist = 1
+        elif cell == color:
+            new_dist = 0
         else:
             continue
 
-        if min_dist[nr][nc] > new_dist:
-            min_dist[nr][nc] = new_dist
-            heapq.heappush(heap, (new_dist, (nr, nc)))
+        first_dist[nc] = new_dist
+        heapq.heappush(heap, (new_dist, (0, nc)))
 
     while heap:
         dist, (r, c) = heapq.heappop(heap)
 
         neighbors = generate_neighbors(r, c, w, h)
         for nr, nc in neighbors:
-            if board_list[nr][nc] == Cell.EMPTY:
+            cell = board[nr][nc]
+            if cell == empty:
                 new_dist = dist + 1
-            elif board_list[nr][nc] == state.player_color:
+            elif cell == color:
                 new_dist = dist
             else:
                 continue
 
             if min_dist[nr][nc] > new_dist:
                 min_dist[nr][nc] = new_dist
-                if nr == h - 1:
-                    return new_dist
-
-                heapq.heappush(heap, (new_dist, (nr, nc)))
+                if nr != h - 1:
+                    heapq.heappush(heap, (new_dist, (nr, nc)))
 
     return min(min_dist[-1])
-
-
-def evaluate(state: HexState):
-    my_dist = dijkstra(state)
-    other_dist = dijkstra(HexState(state.board, not state.is_red))
-    value = other_dist - my_dist
-    return value
 
 
 def negamax(
@@ -202,7 +195,10 @@ def negamax(
     depth: int = 0,
 ) -> tuple[float, list[tuple[int, int]]]:
     if depth <= 0:
-        return -evaluate(state), None
+        my_dist = dijkstra(state)
+        other_dist = dijkstra(HexState(state.board, not state.is_red))
+        value = other_dist - my_dist
+        return -value, None
 
     next_action_states = list(state)
     # todo: sort actions by pegs placed close to other pegs
@@ -256,8 +252,8 @@ class Human:
 
 def main():
     players = {
-        Cell.BLUE: Negamax(depth=4),
-        Cell.RED: Negamax(depth=4),
+        Cell.RED: Negamax(depth=3),
+        Cell.BLUE: Negamax(depth=3),
     }
 
     game_state = HexState.initial_state(is_red=True)
