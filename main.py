@@ -18,20 +18,24 @@ class Human:
 
     def act(self, state: HexState):
         row, column = self.helper.act(state)
-        user_input = input(f"[{ascii_letters[column]}{row}]> ").strip()
+        user_input = input(f"[{ascii_letters[column]}{row}]> ")
 
         if user_input:
-            row, column = sorted(user_input)
-            column = ascii_letters.index(column)
-            row = int(row)
+            try:
+                user_input = ''.join(sorted(user_input)).strip()
+                row, column = user_input
+                column = ascii_letters.index(column)
+                row = int(row)
+            except ValueError:
+                return None
 
         return row, column
 
 
 def main():
     players = {
-        Cell.RED: Negamax(depth=3),
-        Cell.BLUE: Negamax(depth=3),
+        Cell.RED:  Negamax(depth=4),
+        Cell.BLUE: Human(helper=Negamax(depth=3)),
     }
 
     game_state = HexState.initial_state(is_red=True)
