@@ -7,6 +7,7 @@ This repository contains logic for a hex game implemented using numpy for effici
 
 ```console
 git clone https://github.com/khoda81/hex.git
+cd hex
 python main.py
 ```
 
