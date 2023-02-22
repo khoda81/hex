@@ -1,4 +1,4 @@
-from random import random
+import random
 from string import ascii_letters
 
 from agents.negamax import Negamax
